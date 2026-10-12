@@ -95,7 +95,9 @@ DEFAULT_TRACE_MOE_SIMILARITY_THRESHOLD = 90
 DEFAULT_TRACE_MOE_CUT_BORDERS = True
 DEFAULT_TRACE_MOE_MAX_RESULTS = 3
 
+# ==============================================================================
 # 策略名称映射
+# ==============================================================================
 
 # 策略名称映射 (小写 -> 策略类名关键字)
 STRATEGY_ALIAS_MAP = {
