@@ -148,8 +148,14 @@ class TraceMoeStrategyTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_http_and_api_failures(self):
         for status in (400, 402, 403, 429, 503, 504):
-            with self.subTest(status=status), self.assertRaises(ProviderSearchError):
+            with (
+                self.subTest(status=status),
+                self.assertRaises(ProviderSearchError) as error,
+            ):
                 await self.search_payload(TraceMoeStrategy(), {}, status)
+            self.assertEqual(
+                error.exception.user_notice is not None, status in (402, 429)
+            )
         for payload in ([], {"error": "bad secret"}, {"result": None}):
             with self.subTest(payload=payload), self.assertRaises(ProviderSearchError):
                 await self.search_payload(TraceMoeStrategy(), payload)

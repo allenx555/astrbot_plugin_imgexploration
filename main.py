@@ -758,6 +758,7 @@ class ImgExplorationPlugin(Star):
                 {
                     "success": False,
                     "error": "搜索服务暂时不可用，请稍后重试",
+                    "user_notices": result.user_notices,
                 },
                 ensure_ascii=False,
             )

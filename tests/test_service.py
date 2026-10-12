@@ -312,6 +312,22 @@ class ImgExplorationServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.failed_providers, [])
         self.assertFalse(result.all_failed)
 
+    async def test_explore_keeps_failure_notices_as_failures(self) -> None:
+        notice = "[trace.moe] 额度或并发受限，请稍后再试"
+        strat_limited = DummyStrategy(
+            "trace.moe",
+            raise_exc=ProviderSearchError("HTTP 402", user_notice=notice),
+        )
+        strat_fail = DummyStrategy("Fail", raise_exc=ProviderSearchError("Error"))
+        service = ImgExplorationService([strat_limited, strat_fail])
+
+        result = await service.explore("https://example.com/image.jpg")
+
+        self.assertEqual(result.items, [])
+        self.assertEqual(result.user_notices, [notice])
+        self.assertEqual(result.failed_providers, ["trace.moe", "Fail"])
+        self.assertTrue(result.all_failed)
+
     async def test_explore_partial_success_with_empty_and_failure(self) -> None:
         item = SearchResultItem(title="Result", url="https://source.com/1")
         strat_success = DummyStrategy("Success", [item])

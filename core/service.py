@@ -164,6 +164,8 @@ class ImgExplorationService:
                         f"[ImgExploration] 策略 [{provider_name}] 预期失败: {result}"
                     )
                     failed_providers.append(provider_name)
+                    if result.user_notice:
+                        user_notices.append(result.user_notice)
                 elif isinstance(result, asyncio.CancelledError):
                     # 提供商子任务被取消，重新抛出以传播取消
                     logger.warning(f"[ImgExploration] 策略 [{provider_name}] 被取消")

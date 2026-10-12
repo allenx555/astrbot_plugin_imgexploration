@@ -555,10 +555,12 @@ class LLMToolsTests(PluginTestCase):
         event = FakeEvent([])
         plugin.service = MagicMock()
         plugin.service.get_available_strategies.return_value = ["SauceNAO"]
+        notice = "[SauceNAO] provider notice"
         plugin.service.explore = AsyncMock(
             return_value=ExplorationResult(
                 attempted_providers=["SauceNAO"],
                 failed_providers=["SauceNAO"],
+                user_notices=[notice],
             )
         )
         plugin.config = {}
@@ -586,6 +588,7 @@ class LLMToolsTests(PluginTestCase):
             self.assertFalse(res_dict["success"])
             self.assertIn("搜索服务暂时不可用", res_dict["error"])
             self.assertNotIn("SauceNAO", res_dict["error"])
+            self.assertEqual(res_dict["user_notices"], [notice])
             mock_mgr.get_image_by_index.assert_called_once_with(event, -1)
             mock_convert.assert_awaited_once_with(source_url)
             plugin.service.explore.assert_awaited_once_with(

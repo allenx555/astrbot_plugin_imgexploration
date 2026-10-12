@@ -93,6 +93,12 @@ class TraceMoeStrategy(ImageSearchStrategy):
                     proxy=get_proxy_url(),
                     timeout=aiohttp.ClientTimeout(total=HTTP_TIMEOUT_SECONDS),
                 ) as response:
+                    # 官方 402 同时表示额度耗尽和并发超限；不读取可能含图片 URL 的错误 body
+                    if response.status in (402, 429):
+                        raise ProviderSearchError(
+                            f"trace.moe HTTP {response.status}",
+                            user_notice="[trace.moe] 额度或并发受限，请稍后再试",
+                        )
                     if response.status != 200:
                         raise ProviderSearchError(f"trace.moe HTTP {response.status}")
                     payload = await response.json()
