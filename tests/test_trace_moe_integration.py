@@ -4,6 +4,7 @@ import json
 from unittest.mock import AsyncMock, Mock, patch
 
 from astrbot.core.message.components import Image
+from astrbot_plugin_imgexploration.core import image_context, utils
 from astrbot_plugin_imgexploration.core.image_context import ImageContextManager
 from astrbot_plugin_imgexploration.core.models import (
     ProviderSearchOutcome,
@@ -15,6 +16,20 @@ from tests.helpers import FakeEvent, PluginTestCase
 
 
 class TraceMoeIntegrationTests(PluginTestCase):
+    def setUp(self):
+        super().setUp()
+        # 真实插件初始化会修改模块级全局状态，测试结束后恢复原值
+        for module, name in (
+            (utils, "_proxy_url"),
+            (utils, "_user_agent"),
+            (utils, "_allow_image_upload"),
+            (utils, "_allow_local_file_access"),
+            (image_context, "_image_context_manager"),
+        ):
+            patcher = patch.object(module, name, getattr(module, name))
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
     def make_configured_plugin(
         self, enabled=False, include=False, *, sauce_enabled=False
     ):
@@ -66,9 +81,14 @@ class TraceMoeIntegrationTests(PluginTestCase):
 
     async def test_explicit_only_rejects_no_argument_without_wait(self):
         plugin = self.make_configured_plugin(True)
-        messages = [r async for r in plugin.search_image_cmd(FakeEvent([]))]
+        with (
+            patch.object(plugin._image_wait, "create", new=AsyncMock()) as wait,
+            patch.object(plugin.service, "explore", new=AsyncMock()) as explore,
+        ):
+            messages = [r async for r in plugin.search_image_cmd(FakeEvent([]))]
         self.assertEqual(len(messages), 1)
-        self.assertIn("指定引擎", messages[0])
+        wait.assert_not_awaited()
+        explore.assert_not_awaited()
         await plugin.terminate()
 
     async def test_explicit_command_and_default_search(self):

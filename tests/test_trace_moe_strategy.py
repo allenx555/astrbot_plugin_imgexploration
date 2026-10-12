@@ -94,6 +94,16 @@ class TraceMoeStrategyTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("低置信度", result.items[0].description)
 
+    async def test_invalid_threshold_uses_default(self):
+        nodes = [match(similarity=0.85), match(similarity=0.95)]
+        for threshold in ("invalid", None):
+            with self.subTest(threshold=threshold):
+                result, _ = await self.search_payload(
+                    TraceMoeStrategy(similarity_threshold=threshold),
+                    {"result": nodes},
+                )
+                self.assertEqual([item.similarity for item in result.items], ["95.00%"])
+
     async def test_missing_fields_adult_range_and_long_time(self):
         nodes = [
             match(
