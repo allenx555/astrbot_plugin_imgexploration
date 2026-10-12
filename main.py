@@ -649,6 +649,32 @@ class ImgExplorationPlugin(Star):
                 ensure_ascii=False,
             )
 
+        # 解析策略参数
+        strategy_names = None
+        if strategies and strategies.strip():
+            strategy_names = [s.strip() for s in strategies.split(",") if s.strip()]
+
+        available_strategies = self.service.get_available_strategies()
+
+        if not strategy_names and not self.service.resolve_strategy_names(None)[0]:
+            return json.dumps(
+                {"success": False, "error": _NO_DEFAULT_STRATEGIES_MESSAGE},
+                ensure_ascii=False,
+            )
+
+        # 验证策略是否存在
+        if strategy_names:
+            _, not_found = self.service.resolve_strategy_names(strategy_names)
+            if not_found:
+                return json.dumps(
+                    {
+                        "success": False,
+                        "error": f"以下策略不可用: {', '.join(not_found)}",
+                        "available_strategies": available_strategies,
+                    },
+                    ensure_ascii=False,
+                )
+
         image_ctx = get_image_context_manager()
         image_url = None
         selected_by = "image_index"
@@ -696,32 +722,6 @@ class ImgExplorationPlugin(Star):
                 },
                 ensure_ascii=False,
             )
-
-        # 解析策略参数
-        strategy_names = None
-        if strategies and strategies.strip():
-            strategy_names = [s.strip() for s in strategies.split(",") if s.strip()]
-
-        available_strategies = self.service.get_available_strategies()
-
-        if not strategy_names and not self.service.resolve_strategy_names(None)[0]:
-            return json.dumps(
-                {"success": False, "error": _NO_DEFAULT_STRATEGIES_MESSAGE},
-                ensure_ascii=False,
-            )
-
-        # 验证策略是否存在
-        if strategy_names:
-            _, not_found = self.service.resolve_strategy_names(strategy_names)
-            if not_found:
-                return json.dumps(
-                    {
-                        "success": False,
-                        "error": f"以下策略不可用: {', '.join(not_found)}",
-                        "available_strategies": available_strategies,
-                    },
-                    ensure_ascii=False,
-                )
 
         logger.info(
             "[ImgExploration] AI 工具调用搜图，"

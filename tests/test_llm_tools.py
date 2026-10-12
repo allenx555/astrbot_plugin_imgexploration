@@ -183,7 +183,7 @@ class LLMToolsTests(PluginTestCase):
     async def test_tool_search_image_reports_selection_errors_with_context(
         self,
     ) -> None:
-        plugin = self.make_plugin(SimpleNamespace())
+        plugin = self.make_plugin(MagicMock())
         plugin.strategies = [object()]
         event = FakeEvent([])
         context_info = {"has_images": True, "count": 1, "images": []}
@@ -240,7 +240,7 @@ class LLMToolsTests(PluginTestCase):
     async def test_tool_search_image_rejects_evicted_or_expired_image_ids(
         self,
     ) -> None:
-        plugin = self.make_plugin(SimpleNamespace())
+        plugin = self.make_plugin(MagicMock())
         plugin.strategies = [object()]
         event = FakeEvent([])
 
@@ -289,7 +289,7 @@ class LLMToolsTests(PluginTestCase):
             convert.assert_not_awaited()
 
     async def test_tool_search_image_http_url_conversion_failure(self) -> None:
-        plugin = self.make_plugin(SimpleNamespace())
+        plugin = self.make_plugin(MagicMock())
         plugin.strategies = [object()]
         event = FakeEvent([])
 

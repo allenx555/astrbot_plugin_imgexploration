@@ -169,6 +169,32 @@ class TraceMoeIntegrationTests(PluginTestCase):
         self.assertTrue(image_event.is_stopped())
         await plugin.terminate()
 
+    async def test_llm_without_default_strategies_rejects_before_image(self):
+        plugin = self.make_configured_plugin(True)
+        event = FakeEvent([], message_str="查找图片出处", is_command=False)
+        manager = ImageContextManager()
+        manager.add_image(event, "https://example.com/image")
+        with (
+            patch(
+                "astrbot_plugin_imgexploration.main.get_image_context_manager",
+                return_value=manager,
+            ),
+            patch.object(
+                manager, "get_image_by_index", wraps=manager.get_image_by_index
+            ) as select_image,
+            patch(
+                "astrbot_plugin_imgexploration.main.get_http_image_url",
+                new=AsyncMock(),
+            ) as convert,
+            patch.object(plugin.service, "explore", new=AsyncMock()) as explore,
+        ):
+            result = json.loads(await plugin.tool_search_image(event, image_index=-1))
+            self.assertFalse(result["success"])
+            select_image.assert_not_called()
+            convert.assert_not_awaited()
+            explore.assert_not_awaited()
+        await plugin.terminate()
+
     async def test_disabled_llm_search_does_not_contact_provider(self):
         plugin = self.make_configured_plugin(sauce_enabled=True)
         self.assertEqual(plugin.service.get_available_strategies(), ["SauceNAO"])
@@ -198,7 +224,7 @@ class TraceMoeIntegrationTests(PluginTestCase):
             )
             self.assertFalse(result["success"])
             self.assertEqual(result["available_strategies"], ["SauceNAO"])
-            select_image.assert_called_once_with(event, -1)
+            select_image.assert_not_called()
             explore.assert_not_awaited()
             sauce_search.assert_not_awaited()
             session.assert_not_called()
