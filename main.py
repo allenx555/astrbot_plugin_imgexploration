@@ -807,7 +807,7 @@ class ImgExplorationPlugin(Star):
                 f"全部 {result_count} 条结果，不得遗漏，也不要因为某项相关性较低而省略。"
                 "每条结果必须包含标题和来源；url 非空时原样展示完整 URL，url 为空时"
                 "明确说明“无外部链接”，不得编造链接；similarity 非空时同时展示相似度；"
-                "description 非空时完整展示其中集数、时间点与候选提示。"
+                "description 非空时完整展示，不要删减。"
                 "输出前核对实际展示条数与 count 一致。如果 user_notices 非空，先简短"
                 "转告这些提示。完整展示结果后，可以继续分析最可能的出处、结果之间的"
                 "关系、相关性或其他有价值的信息。请直接输出纯文本，不要使用 Markdown "
