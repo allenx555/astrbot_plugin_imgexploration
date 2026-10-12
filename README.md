@@ -1,5 +1,8 @@
 # 🔍 图片搜索插件（astrbot_plugin_imgexploration）
 
+运行环境要求：Python `>=3.12,<4`，AstrBot `>=4.25,<5`。
+Python 3.10 及更早版本不受支持；开发环境与 CI 同样使用 Python 3.12。
+
 ## 精确搜番（可选）
 
 在 WebUI 的「搜图策略配置」中开启 **启用精确搜番（trace.moe）** 后，使用

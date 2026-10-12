@@ -15,17 +15,20 @@ from tests.helpers import FakeEvent, PluginTestCase
 
 
 class TraceMoeIntegrationTests(PluginTestCase):
-    def make_configured_plugin(self, enabled=False, include=False):
+    def make_configured_plugin(
+        self, enabled=False, include=False, *, sauce_enabled=False
+    ):
         return ImgExplorationPlugin(
             Mock(),
             {
                 "strategies": {
-                    "enable_saucenao": False,
+                    "enable_saucenao": sauce_enabled,
                     "enable_google_lens": False,
                     "enable_ascii2d": False,
                     "enable_trace_moe": enabled,
                     "trace_moe_include_in_default": include,
                 },
+                "api_keys": {"saucenao_api_key": "test-saucenao-key"},
             },
         )
 
@@ -105,7 +108,11 @@ class TraceMoeIntegrationTests(PluginTestCase):
             await plugin.terminate()
 
     async def test_llm_preserves_details_and_actual_used_strategy(self):
-        plugin = self.make_configured_plugin(True)
+        plugin = self.make_configured_plugin(True, sauce_enabled=True)
+        providers = {
+            strategy.get_service_name(): strategy for strategy in plugin.strategies
+        }
+        self.assertEqual(set(providers), {"SauceNAO", "trace.moe"})
         event = FakeEvent([], message_str="这是什么番", is_command=False)
         manager = ImageContextManager()
         manager.add_image(event, "https://example.com/image")
@@ -117,10 +124,13 @@ class TraceMoeIntegrationTests(PluginTestCase):
                 return_value=manager,
             ),
             patch.object(
-                plugin.strategies[0],
+                providers["trace.moe"],
                 "search",
                 new=AsyncMock(return_value=ProviderSearchOutcome(items=[item])),
-            ),
+            ) as anime_search,
+            patch.object(
+                providers["SauceNAO"], "search", new=AsyncMock()
+            ) as sauce_search,
             patch(
                 "astrbot_plugin_imgexploration.main.result_sender.send_search_results",
                 new=AsyncMock(),
@@ -133,6 +143,9 @@ class TraceMoeIntegrationTests(PluginTestCase):
             )
         self.assertEqual(result["items"][0]["description"], description)
         self.assertEqual(result["used_strategies"], ["trace.moe"])
+        self.assertEqual(set(result["available_strategies"]), {"SauceNAO", "trace.moe"})
+        anime_search.assert_awaited_once_with("https://example.com/image")
+        sauce_search.assert_not_awaited()
         await plugin.terminate()
 
     async def test_anime_wait_keeps_selection_and_searches_once(self):
@@ -157,15 +170,36 @@ class TraceMoeIntegrationTests(PluginTestCase):
         await plugin.terminate()
 
     async def test_disabled_llm_search_does_not_contact_provider(self):
-        plugin = self.make_configured_plugin()
-        with patch(
-            "astrbot_plugin_imgexploration.core.providers.trace_moe_strategy.get_aiohttp_session"
-        ) as session:
+        plugin = self.make_configured_plugin(sauce_enabled=True)
+        self.assertEqual(plugin.service.get_available_strategies(), ["SauceNAO"])
+        event = FakeEvent([], message_str="查找截图出处", is_command=False)
+        manager = ImageContextManager()
+        manager.add_image(event, "https://example.com/image")
+        with (
+            patch(
+                "astrbot_plugin_imgexploration.main.get_image_context_manager",
+                return_value=manager,
+            ),
+            patch.object(
+                manager, "get_image_by_index", wraps=manager.get_image_by_index
+            ) as select_image,
+            patch.object(plugin.service, "explore", new=AsyncMock()) as explore,
+            patch.object(
+                plugin.strategies[0], "search", new=AsyncMock()
+            ) as sauce_search,
+            patch(
+                "astrbot_plugin_imgexploration.core.providers.trace_moe_strategy.get_aiohttp_session"
+            ) as session,
+        ):
             result = json.loads(
                 await plugin.tool_search_image(
-                    FakeEvent([]), image_index=-1, strategies="anime"
+                    event, image_index=-1, strategies="anime"
                 )
             )
             self.assertFalse(result["success"])
+            self.assertEqual(result["available_strategies"], ["SauceNAO"])
+            select_image.assert_called_once_with(event, -1)
+            explore.assert_not_awaited()
+            sauce_search.assert_not_awaited()
             session.assert_not_called()
         await plugin.terminate()

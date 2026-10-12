@@ -66,7 +66,7 @@ class TraceMoeStrategyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(item.url, "https://anilist.co/anime/123")
         self.assertEqual(item.similarity, "95.00%")
         self.assertIn("第2集", item.description)
-        self.assertIn("00:00", item.description)
+        self.assertIn("文件内时间点: 00:00", item.description)
 
     async def test_guest_request_without_cropping(self):
         outcome, session = await self.search_payload(
