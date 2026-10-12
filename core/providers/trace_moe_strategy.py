@@ -151,6 +151,12 @@ class TraceMoeStrategy(ImageSearchStrategy):
             details = []
             start = _number(node.get("episode_start"))
             end = _number(node.get("episode_end"))
+            episode = node.get("episode")
+            # 多集文件的 episode 可能是 [起始集, 结束集]；仅接受全为正数的数组
+            if (start is None or end is None) and isinstance(episode, list) and episode:
+                numbers = [_number(value) for value in episode]
+                if all(number is not None and number > 0 for number in numbers):
+                    start, end = numbers[0], numbers[-1]
             if start is not None and end is not None and 0 < start <= end:
                 details.append(
                     f"第{start:g}集"
@@ -158,7 +164,6 @@ class TraceMoeStrategy(ImageSearchStrategy):
                     else f"第{start:g}–{end:g}集（文件覆盖多集）"
                 )
             else:
-                episode = node.get("episode")
                 if isinstance(episode, str) and episode.strip():
                     details.append(f"集数: {episode}")
                 elif (

@@ -118,6 +118,22 @@ class TraceMoeStrategyTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("OVA", result.items[2].description)
         self.assertIn("00:00", result.items[2].description)
 
+    async def test_episode_arrays(self):
+        cases = [
+            ([3], "第3集"),
+            ([1, 2], "第1–2集"),
+            ([], "集数未知"),
+            ([2, 1], "集数未知"),
+            ([1, "OVA"], "集数未知"),
+            ([0, 1], "集数未知"),
+        ]
+        for episode, expected in cases:
+            with self.subTest(episode=episode):
+                result, _ = await self.search_payload(
+                    TraceMoeStrategy(), {"result": [match(episode=episode)]}
+                )
+                self.assertIn(expected, result.items[0].description)
+
     async def test_invalid_candidates_are_ignored(self):
         nodes = [
             None,
