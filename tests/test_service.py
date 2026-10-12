@@ -63,6 +63,22 @@ class SearchResultItemTests(unittest.TestCase):
 
 
 class ImgExplorationServiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_explicit_only_strategy_is_available_but_not_called_by_default(
+        self,
+    ) -> None:
+        sauce = DummyStrategy("SauceNAO")
+        anime = DummyStrategy("trace.moe")
+        anime.search = AsyncMock(return_value=[])
+        service = ImgExplorationService(
+            [sauce, anime], default_strategy_names=["SauceNAO"]
+        )
+        result = await service.explore("https://example.com/image")
+        self.assertEqual(result.attempted_providers, ["SauceNAO"])
+        anime.search.assert_not_awaited()
+        result = await service.explore("https://example.com/image", ["anime"])
+        self.assertEqual(result.attempted_providers, ["trace.moe"])
+        anime.search.assert_awaited_once()
+
     def test_available_strategy_names_preserve_registration_order(self) -> None:
         strat_a = DummyStrategy("SauceNAO")
         strat_b = DummyStrategy("Ascii2D")

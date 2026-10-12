@@ -1,0 +1,171 @@
+from __future__ import annotations
+
+import json
+from unittest.mock import AsyncMock, Mock, patch
+
+from astrbot.core.message.components import Image
+from astrbot_plugin_imgexploration.core.image_context import ImageContextManager
+from astrbot_plugin_imgexploration.core.models import (
+    ProviderSearchOutcome,
+    SearchResultItem,
+)
+from astrbot_plugin_imgexploration.main import ImgExplorationPlugin
+
+from tests.helpers import FakeEvent, PluginTestCase
+
+
+class TraceMoeIntegrationTests(PluginTestCase):
+    def make_configured_plugin(self, enabled=False, include=False):
+        return ImgExplorationPlugin(
+            Mock(),
+            {
+                "strategies": {
+                    "enable_saucenao": False,
+                    "enable_google_lens": False,
+                    "enable_ascii2d": False,
+                    "enable_trace_moe": enabled,
+                    "trace_moe_include_in_default": include,
+                },
+            },
+        )
+
+    async def test_enable_and_default_switches(self):
+        for enabled, include in (
+            (False, False),
+            (False, True),
+            (True, False),
+            (True, True),
+        ):
+            with self.subTest(enabled=enabled, include=include):
+                plugin = self.make_configured_plugin(enabled, include)
+                self.assertEqual(
+                    plugin.service.get_available_strategies(),
+                    ["trace.moe"] if enabled else [],
+                )
+                defaults, _ = plugin.service.resolve_strategy_names(None)
+                self.assertEqual(len(defaults), int(enabled and include))
+                for alias in ("anime", "trace", "tracemoe", "whatanime"):
+                    resolved, missing = plugin.service.resolve_strategy_names([alias])
+                    self.assertEqual(len(resolved), int(enabled))
+                    self.assertEqual(missing, [] if enabled else [alias])
+                await plugin.terminate()
+
+    async def test_disabled_strategy_rejects_command(self):
+        plugin = self.make_configured_plugin()
+        event = FakeEvent(
+            [],
+            message_str="搜图 anime",
+            messages=[Image(file="https://example.com/image")],
+        )
+        self.assertEqual(len([r async for r in plugin.search_image_cmd(event)]), 1)
+        self.assertFalse(event.timeline)
+        await plugin.terminate()
+
+    async def test_explicit_only_rejects_no_argument_without_wait(self):
+        plugin = self.make_configured_plugin(True)
+        messages = [r async for r in plugin.search_image_cmd(FakeEvent([]))]
+        self.assertEqual(len(messages), 1)
+        self.assertIn("指定引擎", messages[0])
+        await plugin.terminate()
+
+    async def test_explicit_command_and_default_search(self):
+        for include in (False, True):
+            plugin = self.make_configured_plugin(True, include)
+            provider = plugin.strategies[0]
+            outcome = ProviderSearchOutcome(
+                items=[
+                    SearchResultItem(
+                        "番名",
+                        "",
+                        source="trace.moe",
+                        description="第2集\n文件内时间点: 01:23",
+                    )
+                ]
+            )
+            event = FakeEvent(
+                [],
+                message_str="搜图" if include else "搜图 anime",
+                messages=[Image(file="https://example.com/image")],
+            )
+            with (
+                patch.object(
+                    provider, "search", new=AsyncMock(return_value=outcome)
+                ) as search,
+                patch(
+                    "astrbot_plugin_imgexploration.main.result_sender.send_search_results",
+                    new=AsyncMock(),
+                ) as sender,
+            ):
+                self.assertEqual([r async for r in plugin.search_image_cmd(event)], [])
+                search.assert_awaited_once_with("https://example.com/image")
+                self.assertEqual(
+                    sender.await_args.args[1][0].description,
+                    outcome.items[0].description,
+                )
+            await plugin.terminate()
+
+    async def test_llm_preserves_details_and_actual_used_strategy(self):
+        plugin = self.make_configured_plugin(True)
+        event = FakeEvent([], message_str="这是什么番", is_command=False)
+        manager = ImageContextManager()
+        manager.add_image(event, "https://example.com/image")
+        description = "第2集\n文件内时间点: 01:23"
+        item = SearchResultItem("番名", "", source="trace.moe", description=description)
+        with (
+            patch(
+                "astrbot_plugin_imgexploration.main.get_image_context_manager",
+                return_value=manager,
+            ),
+            patch.object(
+                plugin.strategies[0],
+                "search",
+                new=AsyncMock(return_value=ProviderSearchOutcome(items=[item])),
+            ),
+            patch(
+                "astrbot_plugin_imgexploration.main.result_sender.send_search_results",
+                new=AsyncMock(),
+            ),
+        ):
+            result = json.loads(
+                await plugin.tool_search_image(
+                    event, image_index=-1, strategies="anime"
+                )
+            )
+        self.assertEqual(result["items"][0]["description"], description)
+        self.assertEqual(result["used_strategies"], ["trace.moe"])
+        await plugin.terminate()
+
+    async def test_anime_wait_keeps_selection_and_searches_once(self):
+        plugin = self.make_configured_plugin(True)
+        command = plugin.search_image_cmd(FakeEvent([], message_str="搜图 anime"))
+        await anext(command)
+        image_event = FakeEvent(
+            [],
+            message_str="",
+            is_command=False,
+            messages=[Image(file="https://example.com/image")],
+        )
+        with patch.object(
+            plugin.strategies[0],
+            "search",
+            new=AsyncMock(return_value=ProviderSearchOutcome()),
+        ) as search:
+            await plugin.on_message(image_event)
+            self.assertEqual([r async for r in command], [])
+            search.assert_awaited_once_with("https://example.com/image")
+        self.assertTrue(image_event.is_stopped())
+        await plugin.terminate()
+
+    async def test_disabled_llm_search_does_not_contact_provider(self):
+        plugin = self.make_configured_plugin()
+        with patch(
+            "astrbot_plugin_imgexploration.core.providers.trace_moe_strategy.get_aiohttp_session"
+        ) as session:
+            result = json.loads(
+                await plugin.tool_search_image(
+                    FakeEvent([]), image_index=-1, strategies="anime"
+                )
+            )
+            self.assertFalse(result["success"])
+            session.assert_not_called()
+        await plugin.terminate()

@@ -500,7 +500,7 @@ class LLMToolsTests(PluginTestCase):
             mock_mgr.get_image_by_id.assert_not_called()
             mock_mgr.get_image_by_index.assert_called_once_with(event, 2)
             mock_convert.assert_awaited_once_with(source_url)
-            plugin.service.resolve_strategy_names.assert_not_called()
+            plugin.service.resolve_strategy_names.assert_called_once_with(None)
             # 由模型展示结果时不发送结果图片，因此跳过缩略图下载
             plugin.service.explore.assert_awaited_once_with(
                 http_url,
