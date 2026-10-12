@@ -913,7 +913,8 @@ class ImgExplorationPlugin(Star):
         - 搜图 saucenao,google: 使用多个指定策略
           (可用英文逗号、中文逗号、顿号或空格分隔)
 
-        别名: sauce=saucenao, 2d=ascii2d, lens=google
+        别名: sauce=saucenao, 2d=ascii2d, lens=google,
+        trace/tracemoe/whatanime=anime
         """
         results = self._command_search_results(event, event.message_str)
         try:
